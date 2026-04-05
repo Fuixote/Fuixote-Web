@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuixote</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --window-bg: rgba(22, 27, 34, 0.95);
+            --text-main: #c9d1d9;
+            --text-dim: #8b949e;
+            --accent-color: #58a6ff;
+            /* 极客蓝 */
+            --success-color: #7ee787;
+            /* 现代绿 */
+            --warning-color: #d29922;
+            /* 琥珀金 */
+            --error-color: #ff7b72;
+            /* 珊瑚红 */
+            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #161b22 0%, #0d1117 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-mono);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* 终端窗口外框 */
+        .window {
+            width: 95%;
+            max-width: 850px;
+            height: 80vh;
+            background: var(--window-bg);
+            border-radius: 12px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+
+        /* 顶部装饰条 */
+        .title-bar {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .red {
+            background: #ff5f56;
+        }
+
+        .yellow {
+            background: #ffbd2e;
+        }
+
+        .green {
+            background: #27c93f;
+        }
+
+        .title {
+            margin-left: 20px;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        /* 内容区 */
+        #terminal-content {
+            flex: 1;
+            padding: 25px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-color) transparent;
+        }
+
+        .line {
+            margin-bottom: 8px;
+            line-height: 1.6;
+            font-size: 15px;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        .prompt {
+            color: var(--success-color);
+            font-weight: bold;
+        }
+
+        .directory {
+            color: var(--accent-color);
+        }
+
+        #input-line {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-family: inherit;
+            font-size: 15px;
+            flex: 1;
+            margin-left: 10px;
+        }
+
+        /* 重点卡片样式 */
+        .output-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .label {
+            color: var(--warning-color);
+            display: inline-block;
+            width: 100px;
+        }
+
+        .value {
+            color: white;
+        }
+
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.02);
+            position: absolute;
+            left: 0;
+            top: 0;
+            pointer-events: none;
+            animation: scan 4s linear infinite;
+            z-index: 10;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes scan {
+            0% {
+                top: 0;
+            }
+
+            100% {
+                top: 100%;
+            }
+        }
+
+        /* 手机端适配 */
+        @media (max-width: 600px) {
+            .window {
+                height: 95vh;
+            }
+
+            .label {
+                width: 80px;
+            }
+
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="window">
+        <div class="scanline"></div>
+        <div class="title-bar">
+            <div class="buttons">
+                <div class="dot red"></div>
+                <div class="dot yellow"></div>
+                <div class="dot green"></div>
+            </div>
+            <div class="title">fuixote — zsh — 80×24</div>
+        </div>
+
+        <div id="terminal-content">
+            <div id="boot-process"></div>
+            <div id="output"></div>
+            <div id="input-line" style="display:none;">
+                <span class="prompt">fuixote@web</span><span style="color:white">:</span><span
+                    class="directory">~</span><span style="color:white">$</span>
+                <input id="user-input" type="text" spellcheck="false" autocomplete="off">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const bootSequence = [
+            "Initializing Fuixote OS...",
+            "Authenticating user...",
+            "Connecting to fuixote.com...",
+            "Welcome back, Don. Windmills detected in the area."
+        ];
+
+        const commands = {
+            whoami: `
+            <div class="output-card">
+                <p><span class="label">IDENTITY:</span> <span class="value">Weikang Fu</span></p>
+                <p><span class="label">ROLE:</span> <span class="value">Digital Knight / Builder</span></p>
+                <p><span class="label">MISSION:</span> <span class="value">"Chasing windmills, delivering results."</span></p>
+                <p><span class="label">STACK:</span> <span class="value">Product Design, Strategy, Python, Magic</span></p>
+            </div>`,
+            contact: `
+            <div class="output-card">
+                <p><span class="label">EMAIL:</span> <span class="value"><a href="mailto:don@fuixote.com">don@fuixote.com</a></span></p>
+                <p><span class="label">LOCATION:</span> <span class="value">The Digital La Mancha</span></p>
+            </div>`,
+            help: `<p style="color:#8b949e">Available commands: <span style="color:#58a6ff">whoami</span>, <span style="color:#58a6ff">contact</span>, <span style="color:#58a6ff">clear</span>, <span style="color:#58a6ff">help</span></p>`
+        };
+
+        const bootDiv = document.getElementById('boot-process');
+        const inputLine = document.getElementById('input-line');
+        const userInput = document.getElementById('user-input');
+        const output = document.getElementById('output');
+        const terminalContent = document.getElementById('terminal-content');
+
+        async function startBoot() {
+            for (let i = 0; i < bootSequence.length; i++) {
+                await new Promise(r => setTimeout(r, 400));
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.style.color = '#8b949e';
+                line.innerHTML = `> ${bootSequence[i]}`;
+                bootDiv.appendChild(line);
+            }
+            setTimeout(() => {
+                inputLine.style.display = 'flex';
+                userInput.focus();
+            }, 500);
+        }
+
+        function handleCmd(val) {
+            const cmd = val.trim().toLowerCase();
+            const echo = document.createElement('div');
+            echo.className = 'line';
+            echo.innerHTML = `<span class="prompt">fuixote@web</span>:~$ ${val}`;
+            output.appendChild(echo);
+
+            if (cmd === 'clear') {
+                output.innerHTML = '';
+                bootDiv.innerHTML = '';
+            } else if (commands[cmd]) {
+                const res = document.createElement('div');
+                res.className = 'line';
+                res.innerHTML = commands[cmd];
+                output.appendChild(res);
+            } else if (cmd !== "") {
+                const err = document.createElement('div');
+                err.className = 'line';
+                err.style.color = '#ff7b72';
+                err.innerHTML = `Command not found: ${val}. Try 'help'.`;
+                output.appendChild(err);
+            }
+
+            terminalContent.scrollTo(0, terminalContent.scrollHeight);
+        }
+
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleCmd(userInput.value);
+                userInput.value = '';
+            }
+        });
+
+        document.addEventListener('click', () => userInput.focus());
+        startBoot();
+    </script>
+</body>
+
+</html>
