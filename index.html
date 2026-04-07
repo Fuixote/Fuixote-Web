@@ -252,7 +252,7 @@
                 <p><span class="label">EMAIL:</span> <span class="value"><a href="mailto:don@fuixote.com">don@fuixote.com</a></span></p>
                 <p><span class="label">LOCATION:</span> <span class="value">The Digital La Mancha</span></p>
             </div>`,
-            help: `<p style="color:#8b949e">Available commands: <span style="color:#58a6ff">whoami</span>, <span style="color:#58a6ff">contact</span>, <span style="color:#58a6ff">clear</span>, <span style="color:#58a6ff">help</span></p>`
+            help: `<p style="color:#8b949e">Available commands: <span style="color:#58a6ff">whoami</span>, <span style="color:#58a6ff">contact</span>, <span style="color:#58a6ff">clear</span>, <span style="color:#58a6ff">help</span>, <span style="color:#58a6ff">/pronounce &lt;English text&gt;</span></p>`
         };
 
         const bootDiv = document.getElementById('boot-process');
@@ -260,6 +260,75 @@
         const userInput = document.getElementById('user-input');
         const output = document.getElementById('output');
         const terminalContent = document.getElementById('terminal-content');
+        let speechVoices = [];
+
+        function loadSpeechVoices() {
+            if (!('speechSynthesis' in window)) {
+                speechVoices = [];
+                return;
+            }
+
+            speechVoices = window.speechSynthesis.getVoices();
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function getAmericanEnglishVoice() {
+            if (!speechVoices.length) {
+                loadSpeechVoices();
+            }
+
+            return speechVoices.find((voice) => voice.lang === 'en-US')
+                || speechVoices.find((voice) => voice.lang.startsWith('en-US'))
+                || speechVoices.find((voice) => /american|us english|english us/i.test(voice.name));
+        }
+
+        function speakPronunciation(text) {
+            const content = text.trim();
+
+            if (!content) {
+                return {
+                    ok: false,
+                    message: "Usage: /pronounce <English text>"
+                };
+            }
+
+            if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+                return {
+                    ok: false,
+                    message: "TTS is not supported in this browser."
+                };
+            }
+
+            const utterance = new SpeechSynthesisUtterance(content);
+            const selectedVoice = getAmericanEnglishVoice();
+
+            utterance.lang = 'en-US';
+            utterance.rate = 0.95;
+            utterance.pitch = 1;
+
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+                utterance.lang = selectedVoice.lang || 'en-US';
+            }
+
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+
+            return {
+                ok: true,
+                message: selectedVoice
+                    ? `Pronouncing in American English: ${escapeHtml(content)} <span style="color:#8b949e">(voice: ${escapeHtml(selectedVoice.name)})</span>`
+                    : `Pronouncing in American English: ${escapeHtml(content)}`
+            };
+        }
 
         async function startBoot() {
             for (let i = 0; i < bootSequence.length; i++) {
@@ -277,15 +346,25 @@
         }
 
         function handleCmd(val) {
-            const cmd = val.trim().toLowerCase();
+            const raw = val.trim();
+            const cmd = raw.toLowerCase();
+            const pronounceMatch = raw.match(/^\/pronounce(?:\s+([\s\S]+))?$/i);
             const echo = document.createElement('div');
             echo.className = 'line';
-            echo.innerHTML = `<span class="prompt">fuixote@web</span>:~$ ${val}`;
+            echo.innerHTML = `<span class="prompt">fuixote@web</span>:~$ ${escapeHtml(val)}`;
             output.appendChild(echo);
 
             if (cmd === 'clear') {
                 output.innerHTML = '';
                 bootDiv.innerHTML = '';
+            } else if (pronounceMatch) {
+                const spokenText = pronounceMatch[1] || '';
+                const result = speakPronunciation(spokenText);
+                const res = document.createElement('div');
+                res.className = 'line';
+                res.style.color = result.ok ? '#7ee787' : '#ff7b72';
+                res.innerHTML = result.message;
+                output.appendChild(res);
             } else if (commands[cmd]) {
                 const res = document.createElement('div');
                 res.className = 'line';
@@ -295,7 +374,7 @@
                 const err = document.createElement('div');
                 err.className = 'line';
                 err.style.color = '#ff7b72';
-                err.innerHTML = `Command not found: ${val}. Try 'help'.`;
+                err.innerHTML = `Command not found: ${escapeHtml(val)}. Try 'help'.`;
                 output.appendChild(err);
             }
 
@@ -309,6 +388,10 @@
             }
         });
 
+        loadSpeechVoices();
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.addEventListener('voiceschanged', loadSpeechVoices);
+        }
         document.addEventListener('click', () => userInput.focus());
         startBoot();
     </script>
